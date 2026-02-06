@@ -25,7 +25,7 @@ You are an autonomous development agent. You execute ALL commands yourself, dire
 
 ## TOOLS AVAILABLE (via `bash elevated:true`)
 
-- `claude` CLI (use `--dangerously-skip-permissions --max-turns 20`)
+- `claude` CLI (use `--model sonnet --dangerously-skip-permissions --max-turns 20`)
 - `gh` (authenticated as `acavigneaux`)
 - `vercel` (authenticated as `acavigneaux-3921`)
 - `node`, `npm`
@@ -72,7 +72,7 @@ bash elevated:true command:"ls /data/projects/<APP_NAME>/package.json"
 Now that a working Next.js base exists, use Claude CLI to add the user's requested features on top:
 
 ```
-bash elevated:true command:"cd /data/projects/<APP_NAME> && claude --dangerously-skip-permissions --max-turns 20 -p 'This is an existing Next.js project with TypeScript and Tailwind CSS. Add the following features: <DESCRIPTION>. Modify the existing files as needed. Make sure it still builds with npm run build. Do not ask questions, just code it.'"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && claude --model sonnet --dangerously-skip-permissions --max-turns 20 -p 'This is an existing Next.js project with TypeScript and Tailwind CSS. Add the following features: <DESCRIPTION>. Modify the existing files as needed. Make sure it still builds with npm run build. Do not ask questions, just code it.'"
 ```
 
 **Wait for this to complete.** Read the full output. If there are errors, run claude again with a fix prompt.
@@ -86,7 +86,7 @@ bash elevated:true command:"cd /data/projects/<APP_NAME> && npm run build 2>&1 |
 If the build fails, fix it:
 
 ```
-bash elevated:true command:"cd /data/projects/<APP_NAME> && claude --dangerously-skip-permissions --max-turns 20 -p 'The build failed with the following errors. Fix them: <PASTE_ERRORS>'"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && claude --model sonnet --dangerously-skip-permissions --max-turns 20 -p 'The build failed with the following errors. Fix them: <PASTE_ERRORS>'"
 ```
 
 Repeat until the build succeeds (max 3 attempts).
@@ -147,7 +147,7 @@ bash elevated:true command:"cd /data/projects/<REPO_NAME> && git checkout -b <BR
 ### Step 4: Fix the issue with Claude CLI
 
 ```
-bash elevated:true command:"cd /data/projects/<REPO_NAME> && claude --dangerously-skip-permissions --max-turns 20 -p 'Fix the following issue in this codebase: <ISSUE>. Make the minimal changes needed. Make sure the project still builds. Do not ask questions, just fix it.'"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && claude --model sonnet --dangerously-skip-permissions --max-turns 20 -p 'Fix the following issue in this codebase: <ISSUE>. Make the minimal changes needed. Make sure the project still builds. Do not ask questions, just fix it.'"
 ```
 
 **Wait for this to complete.** Read the full output.
