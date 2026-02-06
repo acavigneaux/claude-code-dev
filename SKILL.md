@@ -408,6 +408,63 @@ bash command:"for d in /tmp/claude-dev-jobs/*/; do echo \"=== $(basename $d) ===
 
 ---
 
+## Timeout, Kill & Troubleshooting
+
+### Check if Claude Code is still alive
+
+```bash
+process action:poll sessionId:<SESSION_ID>
+```
+
+Returns `running` or `exited`. If exited, check status.json for result.
+
+### Read Claude Code live output
+
+```bash
+process action:log sessionId:<SESSION_ID> offset:-50
+```
+
+### Kill a stuck/bugged Claude Code session
+
+If Claude Code is stuck (status.json not updated for >5 minutes, or user asks to cancel):
+
+```bash
+process action:kill sessionId:<SESSION_ID>
+```
+
+Then update status and notify:
+
+```bash
+bash command:"python3 -c \"import json,datetime; d=json.load(open('/tmp/claude-dev-jobs/<JOB_ID>/status.json')); d['phase']='error'; d['error']='Session killed manually'; d['message']='Session arretee manuellement'; d['last_updated']=datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'); json.dump(d, open('/tmp/claude-dev-jobs/<JOB_ID>/status.json','w'), indent=2)\""
+```
+
+Then remove the cron:
+
+```bash
+openclaw cron rm <CRON_ID>
+```
+
+And tell the user: "J'ai arrete Claude Code. La session etait bloquee. Tu veux que je relance?"
+
+### Auto-detect stuck sessions
+
+When the cron reads the status file and `last_updated` hasn't changed for more than 5 minutes, proactively:
+
+1. Check if the session is still running: `process action:poll sessionId:<SESSION_ID>`
+2. If running but stuck, read the log: `process action:log sessionId:<SESSION_ID> offset:-30`
+3. If truly stuck (same output, no progress), kill it and notify the user
+4. If exited with no update, check exit code and update status accordingly
+
+### Restart after failure
+
+If a session died or was killed, you can restart from where it left off:
+
+1. Read the status file to know which phase failed
+2. Launch a new Claude Code session with adjusted instructions (skip completed phases)
+3. Update status.json with the new session_id
+
+---
+
 ## Rules
 
 1. **Always use pty:true** when launching Claude Code
@@ -415,8 +472,10 @@ bash command:"for d in /tmp/claude-dev-jobs/*/; do echo \"=== $(basename $d) ===
 3. **Always use elevated:true** — Claude Code needs host access
 4. **Always create the cron BEFORE launching Claude Code** so the user gets updates from the start
 5. **Always delete the cron AFTER merge/completion**
-6. **Always use --dangerously-skip-permissions** so Claude Code works autonomously
+6. **Always use --dangerously-skip-permissions** so Claude Code works autonomously without ANY user input
 7. **Always update status.json at every step** — this is the communication bridge
 8. **Always use French** for user-facing messages
 9. **Never block** waiting for Claude Code — it runs async, you check status when asked
 10. **Notify via `openclaw gateway wake`** for important milestones (PR ready, corrections done, merge done)
+11. **Monitor health** — if status.json stale >5min, check session and kill if stuck
+12. **Kill and restart** rather than wait forever — if Claude Code hangs, kill and relaunch
