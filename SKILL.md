@@ -18,17 +18,19 @@ You are an autonomous development agent. You execute ALL commands yourself, dire
 - **DO NOT use `sessions_spawn` or delegate to sub-agents. Execute all commands yourself.**
 - **DO NOT run anything in the background.** Every command runs synchronously. You wait for it to finish, read the output, then proceed.
 - **DO NOT use process management** (nohup, &, disown, screen, tmux, etc.) for development commands.
-- Use `bash elevated:true command:"..."` to run commands on the **HOST** machine (where claude, gh, vercel, node, npm, git live).
-- Use `bash command:"..."` to run commands **INSIDE the container** (rarely needed for this skill).
+- Use `bash elevated:true command:"..."` to run all commands. This runs inside the container with elevated privileges.
 - Run each step one at a time. Check the output. If something fails, fix it and retry.
+- **ALWAYS combine `mkdir -p` with `cd` using `&&` in the same command** to avoid directory-not-found errors.
 
-## HOST TOOLS AVAILABLE (via `bash elevated:true`)
+## TOOLS AVAILABLE (via `bash elevated:true`)
 
-- `claude` CLI v2.1.34 at `/root/.local/bin/claude` (use `--dangerously-skip-permissions`)
-- `gh` v2.86.0 (authenticated as `acavigneaux`)
-- `vercel` v50.12.3 (authenticated as `acavigneaux-3921`)
-- `node` v22.22.0, `npm` v10.9.4
-- `git`, standard unix tools
+- `claude` CLI (use `--dangerously-skip-permissions`)
+- `gh` (authenticated as `acavigneaux`)
+- `vercel` (authenticated as `acavigneaux-3921`)
+- `node`, `npm`
+- `git` (configured as `acavigneaux`)
+
+**Working directory:** `/data/projects/` (persistent across restarts)
 
 ## MODE DETECTION
 
@@ -52,16 +54,10 @@ Tell the user you're starting and what you understood.
 
 ### Step 2: Scaffold and code the app with Claude CLI
 
-Pick a working directory on the host: `/root/projects/<APP_NAME>`
+Run a **single command** that creates the directory and generates the app:
 
 ```
-bash elevated:true command:"mkdir -p /root/projects/<APP_NAME>"
-```
-
-Then run Claude CLI to generate the entire app. Keep the prompt focused and specific:
-
-```
-bash elevated:true command:"cd /root/projects/<APP_NAME> && claude --dangerously-skip-permissions -p 'Create a complete <FRAMEWORK> app: <DESCRIPTION>. Initialize the project, install dependencies, write all source files. Make sure it builds without errors. Do not ask questions, just build it.'"
+bash elevated:true command:"mkdir -p /data/projects/<APP_NAME> && cd /data/projects/<APP_NAME> && claude --dangerously-skip-permissions -p 'Create a complete <FRAMEWORK> app: <DESCRIPTION>. Initialize the project, install dependencies, write all source files. Make sure it builds without errors. Do not ask questions, just build it.'"
 ```
 
 **Wait for this to complete.** Read the full output. If there are errors, run claude again with a fix prompt.
@@ -69,13 +65,13 @@ bash elevated:true command:"cd /root/projects/<APP_NAME> && claude --dangerously
 ### Step 3: Verify the build
 
 ```
-bash elevated:true command:"cd /root/projects/<APP_NAME> && npm run build 2>&1 | tail -30"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && npm run build 2>&1 | tail -30"
 ```
 
 If the build fails, fix it:
 
 ```
-bash elevated:true command:"cd /root/projects/<APP_NAME> && claude --dangerously-skip-permissions -p 'The build failed with the following errors. Fix them: <PASTE_ERRORS>'"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && claude --dangerously-skip-permissions -p 'The build failed with the following errors. Fix them: <PASTE_ERRORS>'"
 ```
 
 Repeat until the build succeeds.
@@ -83,17 +79,17 @@ Repeat until the build succeeds.
 ### Step 4: Create GitHub repo and push
 
 ```
-bash elevated:true command:"cd /root/projects/<APP_NAME> && git init && git add -A && git commit -m 'Initial commit: <DESCRIPTION>'"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && git init && git add -A && git commit -m 'Initial commit: <DESCRIPTION>'"
 ```
 
 ```
-bash elevated:true command:"cd /root/projects/<APP_NAME> && gh repo create <APP_NAME> --public --source=. --push"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && gh repo create <APP_NAME> --public --source=. --push"
 ```
 
 ### Step 5: Deploy to Vercel
 
 ```
-bash elevated:true command:"cd /root/projects/<APP_NAME> && vercel --yes --prod 2>&1 | tail -20"
+bash elevated:true command:"cd /data/projects/<APP_NAME> && vercel --yes --prod 2>&1 | tail -20"
 ```
 
 Capture the production URL from the output.
@@ -121,7 +117,7 @@ Tell the user you're starting and what you understood.
 ### Step 2: Clone the repo
 
 ```
-bash elevated:true command:"cd /root/projects && git clone https://github.com/<REPO>.git 2>&1 | tail -5"
+bash elevated:true command:"mkdir -p /data/projects && cd /data/projects && git clone https://github.com/<REPO>.git 2>&1 | tail -5"
 ```
 
 (If already cloned, pull latest instead.)
@@ -129,13 +125,13 @@ bash elevated:true command:"cd /root/projects && git clone https://github.com/<R
 ### Step 3: Create a branch
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && git checkout -b <BRANCH_NAME>"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && git checkout -b <BRANCH_NAME>"
 ```
 
 ### Step 4: Fix the issue with Claude CLI
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && claude --dangerously-skip-permissions -p 'Fix the following issue in this codebase: <ISSUE>. Make the minimal changes needed. Make sure the project still builds. Do not ask questions, just fix it.'"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && claude --dangerously-skip-permissions -p 'Fix the following issue in this codebase: <ISSUE>. Make the minimal changes needed. Make sure the project still builds. Do not ask questions, just fix it.'"
 ```
 
 **Wait for this to complete.** Read the full output.
@@ -143,7 +139,7 @@ bash elevated:true command:"cd /root/projects/<REPO_NAME> && claude --dangerousl
 ### Step 5: Verify the build
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && npm run build 2>&1 | tail -30"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && npm run build 2>&1 | tail -30"
 ```
 
 If it fails, run claude again to fix the build errors. Repeat until it passes.
@@ -151,17 +147,17 @@ If it fails, run claude again to fix the build errors. Repeat until it passes.
 ### Step 6: Commit and push
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && git add -A && git commit -m '<BRANCH_NAME>: <SHORT_DESCRIPTION_OF_FIX>'"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && git add -A && git commit -m '<BRANCH_NAME>: <SHORT_DESCRIPTION_OF_FIX>'"
 ```
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && git push -u origin <BRANCH_NAME> 2>&1"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && git push -u origin <BRANCH_NAME> 2>&1"
 ```
 
 ### Step 7: Create a Pull Request
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && gh pr create --title '<PR_TITLE>' --body '<PR_BODY_DESCRIBING_THE_FIX>' 2>&1"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && gh pr create --title '<PR_TITLE>' --body '<PR_BODY_DESCRIBING_THE_FIX>' 2>&1"
 ```
 
 Capture the PR URL from the output.
@@ -171,7 +167,7 @@ Capture the PR URL from the output.
 The Vercel preview URL is typically generated automatically for PRs on connected repos. Check:
 
 ```
-bash elevated:true command:"cd /root/projects/<REPO_NAME> && vercel inspect 2>&1 | head -20"
+bash elevated:true command:"cd /data/projects/<REPO_NAME> && vercel inspect 2>&1 | head -20"
 ```
 
 Or construct it: The preview URL usually appears as a GitHub deployment status on the PR.
