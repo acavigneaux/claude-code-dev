@@ -24,6 +24,23 @@ else
   exit 1
 fi
 
+# 1b. Create claude-run symlink (CRITICAL FIX)
+echo ""
+echo "--- Creating claude-run symlink ---"
+CLAUDE_PATH=$(command -v claude)
+if [ -L "/usr/local/bin/claude-run" ] || [ -f "/usr/local/bin/claude-run" ]; then
+  ok "claude-run already exists"
+else
+  ln -sf "$CLAUDE_PATH" /usr/local/bin/claude-run
+  ok "claude-run symlink created: /usr/local/bin/claude-run -> $CLAUDE_PATH"
+fi
+
+if command -v claude-run &>/dev/null; then
+  ok "claude-run is working: $(claude-run --version 2>&1 | head -1)"
+else
+  warn "claude-run symlink created but not in PATH. May need to restart shell."
+fi
+
 # 2. Install GitHub CLI (gh)
 echo ""
 echo "--- Checking GitHub CLI (gh) ---"
@@ -101,20 +118,49 @@ else
   echo "  git config --global user.email 'your@email.com'"
 fi
 
+# 6b. Configure git credential helper for gh auth
+echo ""
+echo "--- Configuring git credential helper ---"
+git config --global credential.helper '!gh auth git-credential'
+ok "Git credential helper configured to use gh"
+
 # 7. Create jobs directory
 echo ""
 echo "--- Setting up jobs directory ---"
 mkdir -p /tmp/claude-dev-jobs
 ok "Jobs directory ready: /tmp/claude-dev-jobs"
 
-# 8. Summary
+# 8. Clean session locks (CRITICAL FIX)
+echo ""
+echo "--- Cleaning OpenClaw session locks ---"
+SESSION_DIR="/data/.openclaw/agents/main/sessions"
+if [ -d "$SESSION_DIR" ]; then
+  LOCK_COUNT=$(find "$SESSION_DIR" -name "*.lock" 2>/dev/null | wc -l)
+  if [ "$LOCK_COUNT" -gt 0 ]; then
+    warn "Found $LOCK_COUNT stale lock files. Cleaning..."
+    rm -f "$SESSION_DIR"/*.lock
+    ok "Session locks cleaned"
+  else
+    ok "No session locks found (good!)"
+  fi
+else
+  warn "Session directory not found: $SESSION_DIR (will be created by OpenClaw)"
+fi
+
+# 9. Summary
 echo ""
 echo "=== Setup Summary ==="
-echo "claude:  $(command -v claude &>/dev/null && echo 'OK' || echo 'MISSING')"
-echo "gh:      $(command -v gh &>/dev/null && echo 'OK' || echo 'MISSING')"
-echo "gh auth: $(gh auth status &>/dev/null 2>&1 && echo 'OK' || echo 'NOT CONFIGURED')"
-echo "vercel:  $(command -v vercel &>/dev/null && echo 'OK' || echo 'MISSING')"
-echo "vercel auth: $(vercel whoami &>/dev/null 2>&1 && echo 'OK' || echo 'NOT CONFIGURED')"
-echo "git:     $(git config --global user.name &>/dev/null && echo 'OK' || echo 'NEEDS CONFIG')"
+echo "claude:       $(command -v claude &>/dev/null && echo 'OK' || echo 'MISSING')"
+echo "claude-run:   $(command -v claude-run &>/dev/null && echo 'OK' || echo 'MISSING (CRITICAL!)')"
+echo "gh:           $(command -v gh &>/dev/null && echo 'OK' || echo 'MISSING')"
+echo "gh auth:      $(gh auth status &>/dev/null 2>&1 && echo 'OK' || echo 'NOT CONFIGURED')"
+echo "vercel:       $(command -v vercel &>/dev/null && echo 'OK' || echo 'MISSING')"
+echo "vercel auth:  $(vercel whoami &>/dev/null 2>&1 && echo 'OK' || echo 'NOT CONFIGURED')"
+echo "git:          $(git config --global user.name &>/dev/null && echo 'OK' || echo 'NEEDS CONFIG')"
+echo "git creds:    $(git config --global credential.helper &>/dev/null && echo 'OK' || echo 'NOT CONFIGURED')"
+echo "session locks: $([ -d /data/.openclaw/agents/main/sessions ] && [ $(find /data/.openclaw/agents/main/sessions -name '*.lock' 2>/dev/null | wc -l) -eq 0 ] && echo 'CLEAN' || echo 'NOT CHECKED')"
 echo ""
 echo "=== Done ==="
+echo ""
+echo "⚠️  IMPORTANT: Don't forget to add IDENTITY rules!"
+echo "    See IDENTITY-RULES.md for required additions to /data/.openclaw/IDENTITY.md"

@@ -52,6 +52,19 @@ Telegram --> OpenClaw (container Docker, GPT-5.1)
 - Le working directory est `/data/projects/` (monte depuis le host, persistant)
 - HOME du container = `/data` (configs d'auth dans `/data/.config/`, `/data/.claude/`, etc.)
 
+## Quick Start (New Installation)
+
+**For a fresh VPS with OpenClaw:**
+
+1. Clone this repository
+2. Run the setup script: `./scripts/setup.sh`
+3. Add IDENTITY rules: Follow instructions in `IDENTITY-RULES.md`
+4. Test from Telegram: Send "crée une app test-counter simple"
+
+**See TROUBLESHOOTING.md for detailed setup and common issues.**
+
+---
+
 ## Setup
 
 ### Prerequis
@@ -151,3 +164,38 @@ docker exec openclaw-0nfu-openclaw-1 ls /data/projects/
 # Tester claude dans le container
 docker exec openclaw-0nfu-openclaw-1 claude -p "say hello" --max-turns 1
 ```
+
+---
+
+## Troubleshooting
+
+**If the skill doesn't execute from Telegram, doesn't respond, or shows errors:**
+
+See **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** for detailed fixes to common issues:
+
+1. **Missing `claude-run` symlink** - Skill fails with "command not found"
+2. **Session lock files** - Timeout errors, "All models failed"
+3. **Vercel retry loop** - Deploys 10 times instead of once
+4. **Git push authentication** - Push fails with auth errors
+
+### Quick Diagnostics
+
+```bash
+# Check critical fixes are applied
+which claude-run                                                    # Should exist
+find /data/.openclaw/agents/main/sessions -name "*.lock"           # Should be empty
+git config --global credential.helper                               # Should show gh
+docker logs openclaw-0nfu-openclaw-1 2>&1 | grep "vercel" | tail   # Check for retry loops
+```
+
+### Tested Configuration (Working as of 2026-02-09)
+
+- ✅ Skills execute from Telegram without approval blocking
+- ✅ Apps created with GitHub + Vercel automatically
+- ✅ Only 1 Vercel deployment per request (not 10)
+- ✅ No timeout or session lock errors
+- ✅ User confirmed: "ok ca a marché" and "ca a l'air de fonctionner"
+
+For complete setup and troubleshooting details, see:
+- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Detailed fixes and diagnostics
+- **[IDENTITY-RULES.md](./IDENTITY-RULES.md)** - Rules to add to IDENTITY.md
